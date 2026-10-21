@@ -11,7 +11,7 @@ SEARCH_QUERIES = [
 # 只爬取最近7天的最新论文
 TIME_RANGE = timedelta(days=7)
 
-client = arxiv.Client(page_size=100)
+client = arxiv.Client(page_size=100, delay_seconds=5)
 all_papers = []
 
 for query in SEARCH_QUERIES:
