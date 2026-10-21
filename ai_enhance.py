@@ -12,7 +12,8 @@ import argparse
 from tqdm import tqdm
 import langchain_core.exceptions
 from langchain_openai import ChatOpenAI
-from langchain.prompts import (
+# ✅ 修改导入：使用 langchain_core.prompts
+from langchain_core.prompts import (
     ChatPromptTemplate,
     SystemMessagePromptTemplate,
     HumanMessagePromptTemplate,
