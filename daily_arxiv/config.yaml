@@ -4,6 +4,8 @@ arxiv:
     - cond-mat.mtrl-sci
     - chem.GEN
 llm:
-  provider: 'zhipu' # 切换成智谱AI作为大模型提供商
-  model_name: 'glm-4-flash' # 使用免费稳定的glm-4-flash模型
+  # 这里用项目原生支持的deepseek模型，不用额外适配代码
+  model_name: 'deepseek-chat'
+  # 你之前设置的API Key会自动从仓库密钥里读取，不用在这里填明文
+  api_key: ${{ secrets.LLM_API_KEY }}
 
