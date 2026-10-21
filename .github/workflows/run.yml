@@ -2,27 +2,37 @@ name: arXiv Daily AI Enhanced
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 0 * * 1'
+    - cron: '0 0 * * 1'  # 保留每周一自动运行的定时规则
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: 拉取仓库代码
         uses: actions/checkout@v4
-      - name: Install dependencies
-        run: |
-          pip install -r requirements.txt
-      - name: Crawl arXiv papers
+
+      - name: 配置Python环境
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 安装所有依赖
+        run: pip install -r requirements.txt
+
+      - name: 爬取arXiv目标领域论文
         run: python crawl.py
-      - name: Check for duplicates
+
+      - name: 去重校验
         run: python check_duplicates.py
-      - name: AI Enhancement Processing
+
+      - name: 调用DeepSeek生成AI文献总结
         env:
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         run: python ai_enhance.py
-      - name: Convert to Markdown
+
+      - name: 转换为Markdown汇总文档
         run: python convert_to_md.py
-      - name: Send Email
+
+      - name: 自动发送汇总邮件
         env:
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
