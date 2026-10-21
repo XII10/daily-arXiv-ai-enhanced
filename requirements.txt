@@ -1,0 +1,6 @@
+arxiv
+requests
+python-dotenv
+smtplib
+markdownify
+openai
