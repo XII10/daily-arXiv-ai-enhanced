@@ -1,7 +1,9 @@
 arxiv:
-  categories:  # 文章类型
-    - cs.CV
-    - cs.CL
-
+  categories: # 只抓取化学、材料领域的文献，精准覆盖光催化/电催化固氮方向
+    - physics.chem-ph
+    - cond-mat.mtrl-sci
+    - chem.GEN
 llm:
-  model_name: 'deepseek-chat'  # 使用的LLM模型
+  provider: 'zhipu' # 切换成智谱AI作为大模型提供商
+  model_name: 'glm-4-flash' # 使用免费稳定的glm-4-flash模型
+
