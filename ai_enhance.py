@@ -127,10 +127,20 @@ def process_single_item(chain, item: Dict, language: str) -> Dict:
         # Merge partial data with defaults to ensure all fields exist
         item['AI'] = { **default_ai_fields, ** partial_data}
         print(f"Using partial AI data for {item.get('id', 'unknown')}: {list(partial_data.keys())}", file=sys.stderr)
-    except Exception as e:
-        print(f"Unexpected error for {item.get('id', 'unknown')}: {e}", file=sys.stderr)
-        raise RuntimeError(f"AI request failed for {item.get('id', 'unknown')}") from e
-    
+     except Exception as e:
+        import traceback
+        err_msg = str(e)
+        print(f"Unexpected error for {item.get('id', 'unknown')}: {err_msg}", file=sys.stderr)
+        print(traceback.format_exc(), file=sys.stderr)
+
+        # 额度不足、余额不足场景，直接返回None跳过本条，不中断整体任务
+        if "Insufficient Balance" in err_msg or "402" in err_msg or "quota" in err_msg or "余额" in err_msg:
+            print(f"❗ 模型额度不足，跳过文献 {item.get('id', 'unknown')}", file=sys.stderr)
+            return None
+        else:
+            # 其他未知异常继续抛出
+            raise RuntimeError(f"AI request failed for {item.get('id', 'unknown')}") from e
+
     # Final validation to ensure all required fields exist
     for field in default_ai_fields.keys():
         if field not in item['AI']:
@@ -181,8 +191,11 @@ def process_all_items(data: List[Dict], model_name: str, language: str, max_work
             except Exception as e:
                 print(f"Item at index {idx} generated an exception: {e}", file=sys.stderr)
                 processing_errors.append(str(e))
-    raise_if_processing_failed(processing_errors)
-    
+                
+    # raise_if_processing_failed(processing_errors)
+    if processing_errors:
+        print(f"⚠️ 共 {len(processing_errors)} 条文献发生AI处理异常，继续执行后续流程", file=sys.stderr)
+
     return processed_data
 
 def main():
