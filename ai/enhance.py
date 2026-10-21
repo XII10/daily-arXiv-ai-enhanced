@@ -2,6 +2,7 @@ import os
 import json
 import sys
 import re
+import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict
 from queue import Queue
@@ -9,7 +10,6 @@ from threading import Lock
 import dotenv
 import argparse
 from tqdm import tqdm
-
 import langchain_core.exceptions
 from langchain_openai import ChatOpenAI
 from langchain.prompts import (
@@ -23,6 +23,7 @@ from runtime import build_chat_openai_kwargs, raise_if_processing_failed
 
 if os.path.exists('.env'):
     dotenv.load_dotenv()
+
 template = open("template.txt", "r").read()
 system = open("system.txt", "r").read()
 
@@ -37,7 +38,6 @@ def process_single_item(chain, item: Dict, language: str) -> Dict:
     def check_github_code(content: str) -> Dict:
         """提取并验证 GitHub 链接"""
         code_info = {}
-
         # 1. 优先匹配 github.com/owner/repo 格式
         github_pattern = r"https?://github\.com/([a-zA-Z0-9-_]+)/([a-zA-Z0-9-_\.]+)"
         match = re.search(github_pattern, content)
@@ -67,7 +67,6 @@ def process_single_item(chain, item: Dict, language: str) -> Dict:
                 # API 调用失败不影响主流程
                 pass
             return code_info
-
         # 2. 如果没有 github.com，尝试匹配 github.io
         github_io_pattern = r"https?://[a-zA-Z0-9-_]+\.github\.io(?:/[a-zA-Z0-9-_\.]+)*"
         match_io = re.search(github_io_pattern, content)
@@ -80,16 +79,13 @@ def process_single_item(chain, item: Dict, language: str) -> Dict:
             # github.io 不进行 star 和 update 判断
                 
         return code_info
-
     # 检查 summary 字段
     if is_sensitive(item.get("summary", "")):
         return None
-
     # 检测代码可用性
     code_info = check_github_code(item.get("summary", ""))
     if code_info:
         item.update(code_info)
-
     """处理单个数据项"""
     # Default structure with meaningful fallback values
     default_ai_fields = {
@@ -123,7 +119,7 @@ def process_single_item(chain, item: Dict, language: str) -> Dict:
                 print(f"Failed to parse JSON for {item.get('id', 'unknown')}: {json_e}", file=sys.stderr)
         
         # Merge partial data with defaults to ensure all fields exist
-        item['AI'] = {**default_ai_fields, **partial_data}
+        item['AI'] = { **default_ai_fields, ** partial_data}
         print(f"Using partial AI data for {item.get('id', 'unknown')}: {list(partial_data.keys())}", file=sys.stderr)
     except Exception as e:
         print(f"Unexpected error for {item.get('id', 'unknown')}: {e}", file=sys.stderr)
@@ -133,7 +129,6 @@ def process_single_item(chain, item: Dict, language: str) -> Dict:
     for field in default_ai_fields.keys():
         if field not in item['AI']:
             item['AI'][field] = default_ai_fields[field]
-
     # 检查 AI 生成的所有字段
     for v in item.get("AI", {}).values():
         if is_sensitive(str(v)):
@@ -141,22 +136,20 @@ def process_single_item(chain, item: Dict, language: str) -> Dict:
     return item
 
 def process_all_items(data: List[Dict], model_name: str, language: str, max_workers: int) -> List[Dict]:
-    """并行处理所有数据项"""
+    """并行处理所有数据项，已完全适配DeepSeek接口"""
     llm = ChatOpenAI(
         **build_chat_openai_kwargs(
             model_name=model_name,
-            base_url=os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1"),
-            api_key=os.environ.get("OPENAI_API_KEY", ""),
+            base_url="https://api.deepseek.com/v1",
+            api_key=os.environ.get("LLM_API_KEY", ""),
         )
     ).with_structured_output(Structure, method="function_calling")
-
-    print('Connect to:', model_name, file=sys.stderr)
+    print('Connect to DeepSeek:', model_name, file=sys.stderr)
     
     prompt_template = ChatPromptTemplate.from_messages([
         SystemMessagePromptTemplate.from_template(system),
         HumanMessagePromptTemplate.from_template(template=template)
     ])
-
     chain = prompt_template | llm
     
     # 使用线程池并行处理
@@ -182,28 +175,25 @@ def process_all_items(data: List[Dict], model_name: str, language: str, max_work
             except Exception as e:
                 print(f"Item at index {idx} generated an exception: {e}", file=sys.stderr)
                 processing_errors.append(str(e))
-
     raise_if_processing_failed(processing_errors)
     
     return processed_data
 
 def main():
     args = parse_args()
-    model_name = os.environ.get("MODEL_NAME", "gpt-4o-mini")
+    # DeepSeek官方推荐模型名，直接生效
+    model_name = os.environ.get("MODEL_NAME", "deepseek-chat")
     language = os.environ.get("LANGUAGE", 'Chinese')
-
     # 检查并删除目标文件
     target_file = args.data.replace('.jsonl', f'_AI_enhanced_{language}.jsonl')
     if os.path.exists(target_file):
         os.remove(target_file)
         print(f'Removed existing file: {target_file}', file=sys.stderr)
-
     # 读取数据
     data = []
     with open(args.data, "r") as f:
         for line in f:
             data.append(json.loads(line))
-
     # 去重
     seen_ids = set()
     unique_data = []
@@ -211,7 +201,6 @@ def main():
         if item['id'] not in seen_ids:
             seen_ids.add(item['id'])
             unique_data.append(item)
-
     data = unique_data
     print('Open:', args.data, file=sys.stderr)
     
